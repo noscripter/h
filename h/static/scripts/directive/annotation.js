@@ -322,18 +322,18 @@ function AnnotationController(
     // log in.
     saveNewHighlight();
 
+    updateTimestamp(true);
+    updateViewModel(domainModel, vm, permissions);
+
     // If this annotation is not a highlight and if it's new (has just been
     // created by the annotate button) or it has edits not yet saved to the
     // server - then open the editor on AnnotationController instantiation.
     if (!newlyCreatedByHighlightButton) {
       if (isNew(domainModel) || drafts.get(domainModel)) {
+        restoreFromDrafts(drafts, domainModel, vm);
         vm.edit();
       }
     }
-
-    updateTimestamp(true);
-    updateViewModel(domainModel, vm, permissions);
-    restoreFromDrafts(drafts, domainModel, vm);
   }
 
   /** Called when this AnnotationController instance's scope is removed. */
