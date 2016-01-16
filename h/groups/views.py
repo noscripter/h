@@ -12,6 +12,7 @@ from h import i18n
 from h import models
 from h import presenters
 from h.api import search
+from h.api import storage
 from h.api import uri
 from h.groups import schemas
 
