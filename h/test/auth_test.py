@@ -155,7 +155,7 @@ def test_get_client_bad_secret(config):
 
 
 # The fixtures required to mock all of groupfinder()'s dependencies.
-groupfinder_fixtures = pytest.mark.usefixtures('accounts', 'groups')
+groupfinder_fixtures = pytest.mark.usefixtures('accounts', 'group_principals')
 
 
 @groupfinder_fixtures
@@ -200,16 +200,15 @@ def test_groupfinder_admin_and_staff(accounts):
 
 
 @groupfinder_fixtures
-def test_groupfinder_calls_group_principals(accounts, groups):
+def test_groupfinder_calls_group_principals(accounts, group_principals):
     auth.groupfinder("acct:jiji@hypothes.is", Mock())
 
-    groups.group_principals.assert_called_once_with(
-        accounts.get_user.return_value)
+    group_principals.assert_called_once_with(accounts.get_user.return_value)
 
 
 @groupfinder_fixtures
-def test_groupfinder_with_one_group(groups):
-    groups.group_principals.return_value = ['group:group-1']
+def test_groupfinder_with_one_group(group_principals):
+    group_principals.return_value = ['group:group-1']
 
     additional_principals = auth.groupfinder("acct:jiji@hypothes.is", Mock())
 
@@ -217,8 +216,8 @@ def test_groupfinder_with_one_group(groups):
 
 
 @groupfinder_fixtures
-def test_groupfinder_with_three_groups(groups):
-    groups.group_principals.return_value = [
+def test_groupfinder_with_three_groups(group_principals):
+    group_principals.return_value = [
         'group:group-1',
         'group:group-2',
         'group:group-3'
@@ -295,6 +294,36 @@ def test_effective_principals_calls_groupfinder_with_userid_and_request():
     groupfinder.assert_called_with('acct:elina@example.com', request)
 
 
+def _mock_group(pubid):
+    return Mock(pubid=pubid)
+
+
+def test_group_principals_with_no_groups():
+    user = Mock(groups=[])
+
+    assert auth.group_principals(user) == []
+
+
+def test_group_principals_with_one_group():
+    user = Mock(groups=[_mock_group('pubid1')])
+
+    assert auth.group_principals(user) == ['group:pubid1']
+
+
+def test_group_principals_with_three_groups():
+    user = Mock(groups=[
+        _mock_group('pubid1'),
+        _mock_group('pubid2'),
+        _mock_group('pubid3'),
+    ])
+
+    assert auth.group_principals(user) == [
+        'group:pubid1',
+        'group:pubid2',
+        'group:pubid3',
+    ]
+
+
 @pytest.fixture
 def accounts(request):
     patcher = patch('h.auth.accounts', autospec=True)
@@ -303,7 +332,7 @@ def accounts(request):
 
 
 @pytest.fixture
-def groups(request):
-    patcher = patch('h.auth.groups', autospec=True)
+def group_principals(request):
+    patcher = patch('h.auth.group_principals', autospec=True)
     request.addfinalizer(patcher.stop)
     return patcher.start()

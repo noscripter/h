@@ -43,7 +43,6 @@ from pyramid.util import action_method
 from .interfaces import IClientFactory
 from .oauth import JWT_BEARER
 from h import accounts
-from h.api import groups
 
 
 LEEWAY = 240  # allowance for clock skew in verification
@@ -144,7 +143,7 @@ def groupfinder(userid, request):
         principals.add('group:__admin__')
     if user.staff:
         principals.add('group:__staff__')
-    principals.update(groups.group_principals(user))
+    principals.update(group_principals(user))
 
     return list(principals)
 
@@ -169,6 +168,21 @@ def effective_principals(userid, request, groupfinder=groupfinder):
         principals.update(groups)
 
     return list(principals)
+
+
+def group_principals(user):
+    """Return any 'group:<pubid>' principals for the given user.
+
+    Return a list of 'group:<pubid>' principals for the groups that the given
+    user is a member of.
+
+    :param user: the authorized user, as a User object
+    :type user: h.accounts.models.User
+
+    :rtype: list of strings
+
+    """
+    return ['group:{group.pubid}'.format(group=group) for group in user.groups]
 
 
 def generate_signed_token(request):
