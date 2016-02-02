@@ -81,6 +81,13 @@ def invalid_form(errors=None):
     return form
 
 
+def mock_get_queue_writer():
+    """Return a mock object whose API matches request.get_queue_writer()."""
+    def get_queue_writer():
+        pass
+    return mock.create_autospec(get_queue_writer)
+
+
 @pytest.mark.usefixtures('routes_mapper')
 def test_login_redirects_when_logged_in(authn_policy):
     request = DummyRequest()
@@ -349,7 +356,7 @@ def test_forgot_password_creates_no_activations_when_validation_fails(activation
 @patch('h.accounts.views.reset_password_link')
 @forgot_password_fixtures
 def test_forgot_password_generates_reset_link(reset_link, authn_policy):
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method='POST', authenticated_userid=None)
     request.registry.password_reset_serializer = FakeSerializer()
     authn_policy.authenticated_userid.return_value = None
     user = FakeUser(username='giraffe', email='giraffe@thezoo.org')
@@ -413,8 +420,8 @@ def test_forgot_password_redirects_on_success(authn_policy):
 
 @pytest.mark.usefixtures('routes_mapper')
 def test_forgot_password_form_redirects_when_logged_in(authn_policy):
-    request = DummyRequest()
-    authn_policy.authenticated_userid.return_value = "acct:jane@doe.org"
+    request = DummyRequest(method="POST",
+                           authenticated_userid="acct:jane@doe.org")
 
     with pytest.raises(httpexceptions.HTTPFound):
         ForgotPasswordController(request).forgot_password_form()
@@ -476,7 +483,6 @@ def test_reset_password_redirects_on_success():
 
 
 register_fixtures = pytest.mark.usefixtures('activation_model',
-                                            'mailer',
                                             'notify',
                                             'routes_mapper',
                                             'user_model')
@@ -494,7 +500,9 @@ def test_register_returns_errors_when_validation_fails():
 
 @register_fixtures
 def test_register_creates_user_from_form_data(user_model):
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method="POST",
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -512,7 +520,10 @@ def test_register_creates_user_from_form_data(user_model):
 
 @register_fixtures
 def test_register_adds_new_user_to_session(user_model):
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method="POST",
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
+    request.db.add = mock.create_autospec(request.db.add)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -522,13 +533,15 @@ def test_register_adds_new_user_to_session(user_model):
 
     controller.register()
 
-    assert user_model.return_value in request.db.added
+    request.db.add.assert_any_call(user_model.return_value)
 
 
 @register_fixtures
 def test_register_creates_new_activation(activation_model,
                                          user_model):
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method='POST',
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -546,7 +559,9 @@ def test_register_creates_new_activation(activation_model,
 @register_fixtures
 def test_register_generates_activation_email_from_user(activation_email,
                                                        user_model):
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method='POST',
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -562,9 +577,10 @@ def test_register_generates_activation_email_from_user(activation_email,
 
 @patch('h.accounts.views.activation_email')
 @register_fixtures
-def test_register_sends_activation_email(activation_email,
-                                         mailer):
-    request = DummyRequest(method='POST')
+def test_register_publishes_activation_message_to_nsq(activation_email):
+    request = DummyRequest(method='POST',
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -574,7 +590,8 @@ def test_register_sends_activation_email(activation_email,
 
     controller.register()
 
-    assert activation_email.return_value in mailer.outbox
+    request.get_queue_writer.return_value.publish.assert_called_once_with(
+        'activations', activation_email.return_value)
 
 
 @patch('h.accounts.views.RegistrationEvent')
@@ -592,8 +609,10 @@ def test_register_no_event_when_validation_fails(event, notify):
 
 @patch('h.accounts.views.RegistrationEvent')
 @register_fixtures
-def test_register_event_when_validation_succeeds(event, notify, user_model):
-    request = DummyRequest(method='POST')
+def test_register_event_when_validation_succeeds(event, user_model):
+    request = DummyRequest(method='POST',
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -605,12 +624,14 @@ def test_register_event_when_validation_succeeds(event, notify, user_model):
     controller.register()
 
     event.assert_called_with(request, new_user)
-    notify.assert_called_with(event.return_value)
+    request.registry.notify.assert_called_once_with(event.return_value)
 
 
 @register_fixtures
 def test_register_event_redirects_on_success():
-    request = DummyRequest(method='POST')
+    request = DummyRequest(method='POST',
+                           authenticated_userid=None,
+                           get_queue_writer=mock_get_queue_writer())
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
