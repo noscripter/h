@@ -15,8 +15,12 @@
       <div class="group-form__heading">{{ group.name }}</div>
 
       {% if document_links %}
-        Recently annotated documents:
+        <a href="//hypothes.is/stream?q=group:{{ group.pubid }}"
+           target="_blank"
+           title="Recent annotations in this group"
+           class="group-form__recent-link">View recent group annotations</a>
         <ul class="group-form-document-list">
+        <p class="group-form-document-list__heading">Group documents:</p>
           {% for document_link in document_links %}
             <li>{{ document_link }}</li>
           {% endfor %}

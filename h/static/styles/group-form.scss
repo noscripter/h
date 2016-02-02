@@ -23,7 +23,7 @@
     background-color: $white;
     border: $border;
     color: $color-dove-gray;
-    padding-bottom: 45px;
+    padding-bottom: 35px;
     padding-left: 5px;
     padding-right: 5px;
     margin-top: 75px;
@@ -47,6 +47,10 @@
     &__heading {
       font-size: $title-font-size;
       font-weight: $title-font-weight;
+      margin-bottom: 5px;
+    }
+
+    &__recent-link {
       margin-bottom: 40px;
     }
 
@@ -77,11 +81,18 @@
   }
 
   .group-form-document-list {
-    text-align:center;
+    text-align:left;
+    border-top: $border;
+
+    &__heading {
+      font-weight: bold;
+      margin-top: 15px;
+    }
+
   }
 
   .group-form-document-list li {
-    margin-top: 1em;
+    margin-top: 1.5em;
   }
 
   .group-form-footer {
