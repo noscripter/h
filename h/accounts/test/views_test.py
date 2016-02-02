@@ -81,13 +81,6 @@ def invalid_form(errors=None):
     return form
 
 
-def mock_get_queue_writer():
-    """Return a mock object whose API matches request.get_queue_writer()."""
-    def get_queue_writer():
-        pass
-    return mock.create_autospec(get_queue_writer)
-
-
 @pytest.mark.usefixtures('routes_mapper')
 def test_login_redirects_when_logged_in(authn_policy):
     request = DummyRequest()
@@ -382,6 +375,11 @@ def test_forgot_password_generates_mail(reset_link,
     controller = ForgotPasswordController(request)
     controller.form = form_validating_to({"user": user})
     reset_link.return_value = "http://example.com"
+    reset_mail.return_value = {
+        'recipients': [],
+        'subject': '',
+        'body': ''
+    }
 
     controller.forgot_password()
 
@@ -398,10 +396,18 @@ def test_forgot_password_sends_mail(reset_mail, authn_policy, mailer):
     controller = ForgotPasswordController(request)
     controller.form = form_validating_to({"user": user})
     message = reset_mail.return_value
+    reset_mail.return_value = {
+        'recipients': ['giraffe@thezoo.org'],
+        'subject': 'subject',
+        'body': 'body'
+    }
 
     controller.forgot_password()
 
-    assert message in mailer.outbox
+    mailer.send.assert_called_once_with(request,
+                                        recipients=['giraffe@thezoo.org'],
+                                        subject='subject',
+                                        body='body')
 
 
 @forgot_password_fixtures
@@ -420,8 +426,7 @@ def test_forgot_password_redirects_on_success(authn_policy):
 
 @pytest.mark.usefixtures('routes_mapper')
 def test_forgot_password_form_redirects_when_logged_in(authn_policy):
-    request = DummyRequest(method="POST",
-                           authenticated_userid="acct:jane@doe.org")
+    request = DummyRequest(authenticated_userid="acct:jane@doe.org")
 
     with pytest.raises(httpexceptions.HTTPFound):
         ForgotPasswordController(request).forgot_password_form()
@@ -483,6 +488,7 @@ def test_reset_password_redirects_on_success():
 
 
 register_fixtures = pytest.mark.usefixtures('activation_model',
+                                            'mailer',
                                             'notify',
                                             'routes_mapper',
                                             'user_model')
@@ -500,9 +506,7 @@ def test_register_returns_errors_when_validation_fails():
 
 @register_fixtures
 def test_register_creates_user_from_form_data(user_model):
-    request = DummyRequest(method="POST",
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -520,9 +524,7 @@ def test_register_creates_user_from_form_data(user_model):
 
 @register_fixtures
 def test_register_adds_new_user_to_session(user_model):
-    request = DummyRequest(method="POST",
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     request.db.add = mock.create_autospec(request.db.add)
     controller = RegisterController(request)
     controller.form = form_validating_to({
@@ -539,9 +541,7 @@ def test_register_adds_new_user_to_session(user_model):
 @register_fixtures
 def test_register_creates_new_activation(activation_model,
                                          user_model):
-    request = DummyRequest(method='POST',
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -559,9 +559,7 @@ def test_register_creates_new_activation(activation_model,
 @register_fixtures
 def test_register_generates_activation_email_from_user(activation_email,
                                                        user_model):
-    request = DummyRequest(method='POST',
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -569,29 +567,39 @@ def test_register_generates_activation_email_from_user(activation_email,
         "password": "s3crets",
     })
     new_user = user_model.return_value
+    activation_email.return_value = {
+        'recipients': [],
+        'subject': '',
+        'body': ''
+    }
 
     controller.register()
 
-    activation_email.assert_called_with(request, new_user)
+    activation_email.assert_called_once_with(request, new_user)
 
 
 @patch('h.accounts.views.activation_email')
 @register_fixtures
-def test_register_publishes_activation_message_to_nsq(activation_email):
-    request = DummyRequest(method='POST',
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+def test_register_sends_email(activation_email, mailer):
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
         "email": "bob@example.com",
         "password": "s3crets",
     })
+    activation_email.return_value = {
+        'recipients': ['bob@example.com'],
+        'subject': 'subject',
+        'body': 'body'
+    }
 
     controller.register()
 
-    request.get_queue_writer.return_value.publish.assert_called_once_with(
-        'activations', activation_email.return_value)
+    mailer.send.assert_called_once_with(request,
+                                        recipients=['bob@example.com'],
+                                        subject='subject',
+                                        body='body')
 
 
 @patch('h.accounts.views.RegistrationEvent')
@@ -610,9 +618,7 @@ def test_register_no_event_when_validation_fails(event, notify):
 @patch('h.accounts.views.RegistrationEvent')
 @register_fixtures
 def test_register_event_when_validation_succeeds(event, user_model):
-    request = DummyRequest(method='POST',
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -629,9 +635,7 @@ def test_register_event_when_validation_succeeds(event, user_model):
 
 @register_fixtures
 def test_register_event_redirects_on_success():
-    request = DummyRequest(method='POST',
-                           authenticated_userid=None,
-                           get_queue_writer=mock_get_queue_writer())
+    request = DummyRequest(method='POST', authenticated_userid=None)
     controller = RegisterController(request)
     controller.form = form_validating_to({
         "username": "bob",
@@ -1054,3 +1058,11 @@ def activation_model(config, request):
     model = patcher.start()
     request.addfinalizer(patcher.stop)
     return model
+
+
+@pytest.fixture
+def mailer(request):
+    patcher = patch('h.accounts.views.mailer', autospec=True)
+    module = patcher.start()
+    request.addfinalizer(patcher.stop)
+    return module
