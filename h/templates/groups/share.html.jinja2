@@ -17,18 +17,19 @@
       {% if document_links %}
         <a href="//hypothes.is/stream?q=group:{{ group.pubid }}"
            target="_blank"
-           title="Recent annotations in this group"
-           class="group-form__recent-link">View recent group annotations</a>
-        <ul class="group-form-document-list">
-        <p class="group-form-document-list__heading">Group documents:</p>
+           title="Recent annotations in this group">
+           View recent group annotations</a>
+    </div>
+    <div class="group-document-list">       
+        <ul class="group-document-list__list">
+        <p class="group-document-list__heading">Group documents:</p>
           {% for document_link in document_links %}
             <li>{{ document_link }}</li>
           {% endfor %}
         </ul>
       {% else %}
-        <p>This group has not shared any annotations yet.</p>
+        <p class="group-document-list__nocontent-text">This group has not shared any annotations yet.</p>
       {% endif %}
-
     </div>
     <div class="group-form-footer">
       <div class="group-form-footer__explain-text">
