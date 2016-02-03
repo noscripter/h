@@ -46,13 +46,13 @@
     &__heading {
       font-size: $title-font-size;
       font-weight: $title-font-weight;
-      margin-bottom: 5px;
+      margin-bottom: 40px;
     }
 
-    &__heading-create {
+    &__heading-short {
       font-size: $title-font-size;
       font-weight: $title-font-weight;
-      margin-bottom: 40px;
+      margin-bottom: 5px;
     }
 
     .form-field {
